@@ -49,6 +49,11 @@ public:
                     muduo::net::EventLoop* loop)
         : m_connectionBuckets(timeoutSecond)
     {
+        // When timeoutSecond == 1, the actually timeout is 0~1s
+        // so avoid 0 to be the timeout, we set mim timeout is 2
+        if (timeoutSecond < 2)
+            timeoutSecond = 2;
+
         m_connectionBuckets.resize(timeoutSecond);
         loop->runEvery(1.0, boost::bind(&TcpIdleDetector::OnTimer, this));
     }
