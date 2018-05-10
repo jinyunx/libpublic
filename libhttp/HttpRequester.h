@@ -17,7 +17,7 @@ public:
         return m_httpParser.Parse(data, len);
     }
 
-    bool IsComplete()
+    bool IsComplete() const
     {
         return m_httpParser.IsComplete();
     }
@@ -27,27 +27,27 @@ public:
         m_httpParser.Reset();
     }
 
-    const std::string & GetUrl()
+    const std::string & GetUrl() const
     {
         return m_httpParser.GetUrl();
     }
 
-    const std::string & GetMethod()
+    const std::string & GetMethod() const
     {
         return m_httpParser.GetMethod();
     }
 
-    const std::string & GetBody()
+    const std::string & GetBody() const
     {
         return m_httpParser.GetBody();
     }
 
-    const HttpParser::HeaderMap & GetHeaders()
+    const HttpParser::HeaderMap & GetHeaders() const
     {
         return m_httpParser.GetHeaders();
     }
 
-    const char * GetHeader(const std::string &name)
+    const char * GetHeader(const std::string &name) const
     {
         return m_httpParser.GetHeader(name);
     }
@@ -62,12 +62,12 @@ public:
         m_peerPort = peerPort;
     }
 
-    const std::string & GetPeerIp()
+    const std::string & GetPeerIp() const
     {
         return m_peerIp;
     }
 
-    unsigned short GetPeerPort()
+    unsigned short GetPeerPort() const
     {
         return m_peerPort;
     }

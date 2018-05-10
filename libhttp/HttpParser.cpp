@@ -28,7 +28,7 @@ bool HttpParser::Parse(const char *data, size_t len)
     return HTTP_PARSER_ERRNO(&m_httpParser) == HPE_OK;
 }
 
-bool HttpParser::IsComplete()
+bool HttpParser::IsComplete() const
 {
     return m_complete;
 }
@@ -47,35 +47,35 @@ void HttpParser::Reset()
     m_body.clear();
 }
 
-const std::string & HttpParser::GetUrl()
+const std::string & HttpParser::GetUrl() const
 {
     return m_url;
 }
 
-const std::string & HttpParser::GetMethod()
+const std::string & HttpParser::GetMethod() const
 {
     return m_method;
 }
 
-const std::string & HttpParser::GetBody()
+const std::string & HttpParser::GetBody() const
 {
     return m_body;
 }
 
-const HttpParser::HeaderMap & HttpParser::GetHeaders()
+const HttpParser::HeaderMap & HttpParser::GetHeaders() const
 {
     return m_headers;
 }
 
-const char * HttpParser::GetHeader(const std::string &name)
+const char * HttpParser::GetHeader(const std::string &name) const
 {
-    HeaderMap::iterator it = m_headers.find(name);
+    HeaderMap::const_iterator it = m_headers.find(name);
     if (it != m_headers.end())
         return it->second.c_str();
     return "";
 }
 
-bool HttpParser::HeaderReady()
+bool HttpParser::HeaderReady() const
 {
     return m_headerState == HeaderState_HasAll;
 }

@@ -2,32 +2,29 @@
 #define HTTP_DISPATCH
 
 #include "HttpServer.h"
-#include <muduo/net/EventLoop.h>
-#include <tr1/functional>
-#include <map>
+#include <boost/function.hpp>
 #include <string>
+#include <map>
 
 class HttpDispatch : private boost::noncopyable
 {
 public:
-    typedef std::tr1::function < void(const boost::shared_ptr<HttpRequester> &,
-                                      boost::shared_ptr<HttpResponser> &) > HttpHander;
+    typedef boost::function< void(const HttpRequester &,
+                             HttpResponser &) > HttpHandler;
 
-    HttpDispatch(int timeoutSecond, 
-                 muduo::net::EventLoop *loop,
-                 const muduo::net::InetAddress &listenAddr,
-                 const muduo::string &name);
+    HttpDispatch(unsigned short port,
+                 boost::asio::io_service service);
 
-    void Start();
-    void AddHander(const std::string &url, const HttpHander &hander);
-    void ResponseOk(boost::shared_ptr<HttpResponser> &resp);
-    void ResponseError(boost::shared_ptr<HttpResponser> &resp);
+    void Go();
+    void AddHandler(const std::string &url, const HttpHandler &handler);
+    void ResponseOk(HttpResponser &resp);
+    void ResponseError(HttpResponser &resp);
 
 private:
-    typedef std::map<std::string, HttpHander> HanderMap;
+    typedef std::map<std::string, HttpHandler> HanderMap;
 
-    void OnRequest(const boost::shared_ptr<HttpRequester> &req,
-                   boost::shared_ptr<HttpResponser> &resp);
+    void OnRequest(const HttpRequester &req,
+                   HttpResponser &resp);
 
     HanderMap m_handlers;
     HttpServer m_server;

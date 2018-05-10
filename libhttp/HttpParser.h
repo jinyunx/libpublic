@@ -14,14 +14,14 @@ public:
     HttpParser();
 
     bool Parse(const char *data, size_t len);
-    bool IsComplete();
+    bool IsComplete() const;
     void Reset();
 
-    const std::string & GetUrl();
-    const std::string & GetMethod();
-    const std::string & GetBody();
-    const HeaderMap & GetHeaders();
-    const char * GetHeader(const std::string &name);
+    const std::string & GetUrl() const;
+    const std::string & GetMethod() const;
+    const std::string & GetBody() const;
+    const HeaderMap & GetHeaders() const;
+    const char * GetHeader(const std::string &name) const;
 
 private:
     enum HeaderState
@@ -32,7 +32,7 @@ private:
         HeaderState_HasAll = 0x11,
     };
 
-    bool HeaderReady();
+    bool HeaderReady() const;
 
     static int OnUrl(http_parser* parser, const char* at, size_t length);
     static int OnHeaderName(http_parser* parser, const char* at, size_t length);
