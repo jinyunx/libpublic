@@ -7,7 +7,7 @@
 #define RSP_NOTFOUND "{\"code\": 1, \"message\": \"Not Found\"}\n"
 
 HttpDispatch::HttpDispatch(unsigned short port,
-                           boost::asio::io_service service)
+                           boost::asio::io_service &service)
     : m_server(port, service)
 { }
 

@@ -1,15 +1,13 @@
 #include "HttpServer.h"
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
-#include <boost/asio/spawn.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
 class Session : public boost::enable_shared_from_this<Session>,
                 private boost::noncopyable
 {
 public:
-
-    explicit Session(boost::asio::io_service service)
+    explicit Session(boost::asio::io_service &service)
         : m_service(service),
           m_socket(m_service),
           m_timer(m_service)
@@ -68,7 +66,7 @@ private:
         {
             boost::system::error_code ignoreError;
             boost::asio::async_write(
-                m_socket, response, yield[ignoreError]);
+                m_socket, boost::asio::buffer(response), yield[ignoreError]);
         }
         boost::system::error_code ignoreError;
         m_socket.close(ignoreError);
@@ -129,7 +127,7 @@ private:
     {
         if (m_httpCallback)
         {
-            bool close = requester.GetHeader("Connection") == "close";
+            bool close = requester.GetHeader("Connection") == std::string("close");
 
             HttpResponser responser(close);
             m_httpCallback(requester, responser);
@@ -175,7 +173,7 @@ private:
 
 
 HttpServer::HttpServer(unsigned short port,
-                       boost::asio::io_service service)
+                       boost::asio::io_service &service)
     : m_port(port), m_service(service)
 { }
 
@@ -202,6 +200,9 @@ void HttpServer::DoAccept(boost::asio::yield_context yield)
         boost::shared_ptr<Session> session(new Session(m_service));
         acceptor.async_accept(session->Socket(), yield[error]);
         if (!error)
+        {
             session->Go();
+            session->SetHttpCallback(m_httpCallback);
+        }
     }
 }

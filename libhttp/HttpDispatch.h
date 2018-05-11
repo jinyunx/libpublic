@@ -1,5 +1,5 @@
-#ifndef HTTP_DISPATCH
-#define HTTP_DISPATCH
+#ifndef HTTP_DISPATCH_H
+#define HTTP_DISPATCH_H
 
 #include "HttpServer.h"
 #include <boost/function.hpp>
@@ -13,7 +13,7 @@ public:
                              HttpResponser &) > HttpHandler;
 
     HttpDispatch(unsigned short port,
-                 boost::asio::io_service service);
+                 boost::asio::io_service &service);
 
     void Go();
     void AddHandler(const std::string &url, const HttpHandler &handler);
@@ -30,4 +30,4 @@ private:
     HttpServer m_server;
 };
 
-#endif
+#endif // HTTP_DISPATCH_H

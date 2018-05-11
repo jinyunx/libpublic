@@ -1,10 +1,11 @@
-#ifndef HTTP_SERVER
-#define HTTP_SERVER
+#ifndef HTTP_SERVER_H
+#define HTTP_SERVER_H
 
 #include "HttpRequester.h"
 #include "HttpResponser.h"
 
 #include <boost/asio.hpp>
+#include <boost/asio/spawn.hpp>
 #include <boost/function.hpp>
 
 #include <stdio.h>
@@ -12,11 +13,11 @@
 typedef boost::function<
     void(const HttpRequester &, HttpResponser &) > HttpCallback;
 
-class HttpServer
+class HttpServer : private boost::noncopyable
 {
 public:
     HttpServer(unsigned short port,
-               boost::asio::io_service service);
+               boost::asio::io_service &service);
     void SetHttpCallback(const HttpCallback &httpCallback);
     void Go();
 
@@ -28,4 +29,4 @@ private:
     HttpCallback m_httpCallback;
 };
 
-#endif
+#endif // HTTP_SERVER_H

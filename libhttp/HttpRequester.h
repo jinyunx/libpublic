@@ -1,5 +1,5 @@
-#ifndef HTTP_REQUESTER
-#define HTTP_REQUESTER
+#ifndef HTTP_REQUESTER_H
+#define HTTP_REQUESTER_H
 
 #include "HttpParser.h"
 
@@ -78,4 +78,4 @@ private:
     unsigned short m_peerPort;
 };
 
-#endif
+#endif // HTTP_REQUESTER_H

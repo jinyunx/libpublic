@@ -1,5 +1,5 @@
-#ifndef HTTP_PARSER
-#define HTTP_PARSER
+#ifndef HTTP_PARSER_H
+#define HTTP_PARSER_H
 
 #include "../3rd/http-parser/http_parser.h"
 #include <boost/noncopyable.hpp>
@@ -54,4 +54,4 @@ private:
     http_parser m_httpParser;
 };
 
-#endif
+#endif // HTTP_PARSER_H

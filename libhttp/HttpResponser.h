@@ -1,5 +1,5 @@
-#ifndef HTTP_RESPONSER
-#define HTTP_RESPONSER
+#ifndef HTTP_RESPONSER_H
+#define HTTP_RESPONSER_H
 
 #include <boost/noncopyable.hpp>
 #include <stdio.h>
@@ -79,8 +79,7 @@ public:
         }
 
         for (std::map<std::string, std::string>::const_iterator it = m_headers.begin();
-             it != m_headers.end();
-             ++it)
+             it != m_headers.end(); ++it)
         {
             output.append(it->first);
             output.append(": ");
@@ -100,4 +99,4 @@ private:
     std::string m_body;
 };
 
-#endif
+#endif // HTTP_RESPONSER_H
