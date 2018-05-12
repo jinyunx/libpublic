@@ -72,6 +72,16 @@ public:
         return m_peerPort;
     }
 
+    std::string ToString() const
+    {
+        return m_httpParser.ToString();
+    }
+
+    std::string GetErrorDetail() const
+    {
+        return m_httpParser.GetErrorDetail();
+    }
+
 private:
     HttpParser m_httpParser;
     std::string m_peerIp;

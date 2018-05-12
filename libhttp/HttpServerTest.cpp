@@ -4,8 +4,6 @@
 void Handler(const HttpRequester & req,
              HttpResponser &resp)
 {
-    std::cerr << "method: " << req.GetMethod() << std::endl;
-
     resp.SetStatusCode(HttpResponser::StatusCode_200Ok);
     resp.SetBody("hello");
 }

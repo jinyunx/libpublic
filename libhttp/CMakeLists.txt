@@ -28,8 +28,6 @@ set(CMAKE_USE_RELATIVE_PATHS TRUE)
 set(EXECUTABLE_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin")
 set(LIBRARY_OUTPUT_PATH "${PROJECT_BINARY_DIR}/lib")
 
-add_definitions(-DBOOST_COROUTINES_NO_DEPRECATION_WARNING)
-
 include_directories("/root/onexie/cppDev/boost/include")
 
 add_library(http

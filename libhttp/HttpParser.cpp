@@ -1,6 +1,7 @@
 #include "HttpParser.h"
+#include <sstream>
 
-http_parser_settings HttpParser::m_settings = 
+http_parser_settings HttpParser::m_settings =
 {
     0,
     &HttpParser::OnUrl,
@@ -47,6 +48,11 @@ void HttpParser::Reset()
     m_body.clear();
 }
 
+const char * HttpParser::GetErrorDetail() const
+{
+    return http_errno_description(HTTP_PARSER_ERRNO(&m_httpParser));
+}
+
 const std::string & HttpParser::GetUrl() const
 {
     return m_url;
@@ -75,6 +81,17 @@ const char * HttpParser::GetHeader(const std::string &name) const
     return "";
 }
 
+std::string HttpParser::ToString() const
+{
+    std::ostringstream oss;
+    oss << "method: " << GetMethod()
+        << " url: " << GetUrl()
+        << "\nbody:\n" << GetBody()
+        << "\n";
+
+    return oss.str();
+}
+
 bool HttpParser::HeaderReady() const
 {
     return m_headerState == HeaderState_HasAll;
@@ -87,7 +104,8 @@ int HttpParser::OnUrl(http_parser * parser, const char * at, size_t length)
 
     HttpParser *httpParser = (HttpParser *)(parser->data);
     httpParser->m_url.append(at, length);
-    httpParser->m_method = parser->method;
+    httpParser->m_method = http_method_str(
+        static_cast<enum http_method>(parser->method));
 
     return 0;
 }
@@ -101,7 +119,7 @@ int HttpParser::OnHeaderName(http_parser * parser, const char * at, size_t lengt
 
     httpParser->m_headerName = "";
     httpParser->m_headerName.append(at, length);
-    httpParser->m_headerState = 
+    httpParser->m_headerState =
         HeaderState(httpParser->m_headerState | HeaderState_HasName);
     if (httpParser->m_headerState == HeaderState_HasAll)
     {
@@ -121,12 +139,12 @@ int HttpParser::OnHeaderValue(http_parser * parser, const char * at, size_t leng
 
     httpParser->m_headerValue = "";
     httpParser->m_headerValue.append(at, length);
-    httpParser->m_headerState = 
+    httpParser->m_headerState =
         HeaderState(httpParser->m_headerState | HeaderState_HasVaule);
     if (httpParser->m_headerState == HeaderState_HasAll)
     {
         httpParser->m_headerState = HeaderState_None;
-        httpParser->m_headers[httpParser->m_headerName] = 
+        httpParser->m_headers[httpParser->m_headerName] =
             httpParser->m_headerValue;
     }
 

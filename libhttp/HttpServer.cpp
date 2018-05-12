@@ -2,6 +2,7 @@
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <iostream>
 
 class Session : public boost::enable_shared_from_this<Session>,
                 private boost::noncopyable
@@ -34,28 +35,39 @@ public:
     }
 
 private:
-    bool RefreshTimer()
+    bool RefreshTimer(boost::asio::yield_context yield)
     {
         boost::system::error_code error;
         m_timer.expires_from_now(
             boost::posix_time::seconds(kTimeout), error);
-
-        return !error;
+        if (error)
+        {
+            Shutdown("HTTP/1.1 500 Http server"
+                     " timer error\r\n\r\n", yield);
+            return false;
+        }
+        return true;
     }
 
-    bool AppendData(std::vector<char> &data,
-                    boost::asio::yield_context yield)
+    bool ReadData(char *buffer, std::size_t *len,
+                  boost::asio::yield_context yield)
     {
-        char buffer[kBufferSize];
-
         boost::system::error_code error;
         std::size_t size = m_socket.async_read_some(
-            boost::asio::buffer(buffer), yield[error]);
+            boost::asio::buffer(buffer, *len), yield[error]);
+        *len = size;
 
-        if (error)
+        if (error == boost::asio::error::eof)
+        {
+            Shutdown("", yield);
             return false;
+        }
+        else if(error)
+        {
+            Shutdown(error.message(), yield);
+            return false;
+        }
 
-        data.insert(data.end(), buffer, buffer + size);
         return true;
     }
 
@@ -88,35 +100,45 @@ private:
 
     void HttpService(boost::asio::yield_context yield)
     {
-        std::vector<char> data;
+        char buffer[kBufferSize];
         HttpRequester httpRequester;
 
         while (1)
         {
-            if (!RefreshTimer())
-            {
-                Shutdown("HTTP/1.1 500 Http server"
-                         " timer error\r\n\r\n", yield);
-            }
+            if (!RefreshTimer(yield))
+                return;
 
-            if (AppendData(data, yield) &&
-                httpRequester.Parse(&data[0], data.size()))
-            {
-                if (httpRequester.IsComplete())
-                {
-                    if (!OnRequest(httpRequester, yield))
-                        return;
+            std::size_t bufferLength = kBufferSize;
+            if (!ReadData(buffer, &bufferLength, yield))
+                return;
 
-                    httpRequester.Reset();
-                    data.resize(0);
-                }
-            }
-            else
+            if (!HandleData(buffer, bufferLength,
+                            httpRequester, yield))
+                return;
+        }
+    }
+
+    bool HandleData(const char *buffer, std::size_t bufferLength,
+                    HttpRequester &httpRequester,
+                    boost::asio::yield_context yield)
+    {
+        if (httpRequester.Parse(buffer, bufferLength))
+        {
+            if (httpRequester.IsComplete())
             {
-                Shutdown("HTTP/1.1 400 Http recv or"
-                         " parse error\r\n\r\n", yield);
+                if (!OnRequest(httpRequester, yield))
+                    return false;
+                httpRequester.Reset();
             }
         }
+        else
+        {
+            Shutdown("HTTP/1.1 400 Http parse "
+                     "error\r\n\r\n", yield);
+
+            return false;
+        }
+        return true;
     }
 
     // Return:
@@ -155,6 +177,7 @@ private:
             m_timer.async_wait(yield[error]);
             if (error != boost::asio::error::operation_aborted)
             {
+                std::cout << "Timeout" << std::endl;
                 boost::system::error_code ignoreError;
                 m_socket.close(ignoreError);
             }
@@ -201,8 +224,8 @@ void HttpServer::DoAccept(boost::asio::yield_context yield)
         acceptor.async_accept(session->Socket(), yield[error]);
         if (!error)
         {
-            session->Go();
             session->SetHttpCallback(m_httpCallback);
+            session->Go();
         }
     }
 }

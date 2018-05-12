@@ -41,7 +41,7 @@ void HttpDispatch::ResponseError(HttpResponser &resp)
 void HttpDispatch::OnRequest(const HttpRequester &req,
                              HttpResponser &resp)
 {
-    std::cerr << req.GetMethod() << " " << req.GetUrl();
+    std::cerr << req.ToString();
     HanderMap::iterator it = m_handlers.find(req.GetUrl().c_str());
     if (it == m_handlers.end())
     {
