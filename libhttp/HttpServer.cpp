@@ -1,231 +1,82 @@
 #include "HttpServer.h"
+
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <iostream>
 
-class Session : public boost::enable_shared_from_this<Session>,
-                private boost::noncopyable
+class HttpSession : public Session
 {
 public:
-    explicit Session(boost::asio::io_service &service)
-        : m_service(service),
-          m_socket(m_service),
-          m_timer(m_service)
+    explicit HttpSession(boost::asio::io_service &service,
+                         const HttpCallback &httpCallback)
+        : Session(service),
+          m_httpCallback(httpCallback)
     { }
 
-    boost::asio::ip::tcp::socket &Socket()
-    {
-        return m_socket;
-    }
-
-    void SetHttpCallback(const HttpCallback &httpCallback)
-    {
-        m_httpCallback = httpCallback;
-    }
-
-    void Go()
-    {
-        boost::asio::spawn(
-            m_service, boost::bind(&Session::HttpService,
-                                   shared_from_this(), _1));
-        boost::asio::spawn(
-            m_service, boost::bind(&Session::Timeout,
-                                   shared_from_this(), _1));
-    }
-
 private:
-    bool RefreshTimer(boost::asio::yield_context yield)
+    virtual bool OnData(const char *buffer, std::size_t bufferLength)
     {
-        boost::system::error_code error;
-        m_timer.expires_from_now(
-            boost::posix_time::seconds(kTimeout), error);
-        if (error)
-        {
-            Shutdown("HTTP/1.1 500 Http server"
-                     " timer error\r\n\r\n", yield);
+        if (!m_httpRequester.Parse(buffer, bufferLength))
             return false;
-        }
-        return true;
-    }
 
-    bool ReadData(char *buffer, std::size_t *len,
-                  boost::asio::yield_context yield)
-    {
-        boost::system::error_code error;
-        std::size_t size = m_socket.async_read_some(
-            boost::asio::buffer(buffer, *len), yield[error]);
-        *len = size;
-
-        if (error == boost::asio::error::eof)
+        if (m_httpRequester.IsComplete())
         {
-            Shutdown("", yield);
-            return false;
-        }
-        else if(error)
-        {
-            Shutdown(error.message(), yield);
-            return false;
+            if (!OnRequest())
+                return false;
+            m_httpRequester.Reset();
         }
 
         return true;
     }
 
-    void Shutdown(const std::string &response,
-                  boost::asio::yield_context yield)
+    virtual void OnClose()
+    { }
+
+    bool OnRequest()
     {
-        if (!response.empty())
-        {
-            boost::system::error_code ignoreError;
-            boost::asio::async_write(
-                m_socket, boost::asio::buffer(response), yield[ignoreError]);
-        }
-        boost::system::error_code ignoreError;
-        m_socket.close(ignoreError);
-        m_timer.cancel(ignoreError);
-    }
+        bool close = m_httpRequester.GetHeader("Connection") ==
+            std::string("close");
 
-    bool WriteResponse(HttpResponser &responser,
-                       boost::asio::yield_context yield)
-    {
-        std::string buffer;
-        responser.AppendToBuffer(buffer);
+        HttpResponser responser(close);
 
-        boost::system::error_code error;
-        boost::asio::async_write(
-            m_socket, boost::asio::buffer(buffer), yield[error]);
-
-        return !error;
-    }
-
-    void HttpService(boost::asio::yield_context yield)
-    {
-        char buffer[kBufferSize];
-        HttpRequester httpRequester;
-
-        while (1)
-        {
-            if (!RefreshTimer(yield))
-                return;
-
-            std::size_t bufferLength = kBufferSize;
-            if (!ReadData(buffer, &bufferLength, yield))
-                return;
-
-            if (!HandleData(buffer, bufferLength,
-                            httpRequester, yield))
-                return;
-        }
-    }
-
-    bool HandleData(const char *buffer, std::size_t bufferLength,
-                    HttpRequester &httpRequester,
-                    boost::asio::yield_context yield)
-    {
-        if (httpRequester.Parse(buffer, bufferLength))
-        {
-            if (httpRequester.IsComplete())
-            {
-                if (!OnRequest(httpRequester, yield))
-                    return false;
-                httpRequester.Reset();
-            }
-        }
-        else
-        {
-            Shutdown("HTTP/1.1 400 Http parse "
-                     "error\r\n\r\n", yield);
-
-            return false;
-        }
-        return true;
-    }
-
-    // Return:
-    //    true: keep alive
-    //    false: has been shutdown
-    bool OnRequest(HttpRequester &requester,
-                   boost::asio::yield_context yield)
-    {
         if (m_httpCallback)
         {
-            bool close = requester.GetHeader("Connection") == std::string("close");
-
-            HttpResponser responser(close);
-            m_httpCallback(requester, responser);
-
-            if (!WriteResponse(responser, yield) ||
-                responser.CloseConnection())
-            {
-                Shutdown("", yield);
-                return false;
-            }
-            return true;
+            m_httpCallback(m_httpRequester, responser);
         }
         else
         {
-            Shutdown("HTTP/1.1 404 Not Found\r\n\r\n", yield);
-            return false;
+            responser.SetStatusCode(HttpResponser::StatusCode_404NotFound);
+            responser.SetBody("{\"code\": -1, \"message\": \"Not Found\"}\n");
+            responser.SetCloseConnection(true);
         }
+
+        std::string buff;
+        responser.AppendToBuffer(buff);
+
+        WriteResponse(buff.data(), buff.size());
+        return !responser.CloseConnection();
     }
 
-    void Timeout(boost::asio::yield_context yield)
-    {
-        while (m_socket.is_open())
-        {
-            boost::system::error_code error;
-            m_timer.async_wait(yield[error]);
-            if (error != boost::asio::error::operation_aborted)
-            {
-                std::cout << "Timeout" << std::endl;
-                boost::system::error_code ignoreError;
-                m_socket.close(ignoreError);
-            }
-        }
-    }
-
-    const static int kBufferSize = 128;
-    const static int kTimeout = 10;
-
-    boost::asio::io_service &m_service;
-    boost::asio::ip::tcp::socket m_socket;
-    boost::asio::deadline_timer m_timer;
-
+    HttpRequester m_httpRequester;
     HttpCallback m_httpCallback;
 };
 
-
 HttpServer::HttpServer(unsigned short port,
-                       boost::asio::io_service &service)
-    : m_port(port), m_service(service)
+                       boost::asio::io_service &service,
+                       const HttpCallback &httpCallback)
+    : m_service(service),
+      m_httpCallback(httpCallback),
+      m_tcpServer(port, service, boost::bind(
+          &HttpServer::NewSession, this))
 { }
-
-void HttpServer::SetHttpCallback(const HttpCallback &httpCallback)
-{
-    m_httpCallback = httpCallback;
-}
 
 void HttpServer::Go()
 {
-    boost::asio::spawn(
-        m_service, boost::bind(&HttpServer::DoAccept, this, _1));
+    m_tcpServer.Go();
 }
 
-void HttpServer::DoAccept(boost::asio::yield_context yield)
+SessionPtr HttpServer::NewSession()
 {
-    boost::asio::ip::tcp::acceptor acceptor(
-        m_service, boost::asio::ip::tcp::endpoint(
-            boost::asio::ip::tcp::v4(), m_port));
-
-    while (1)
-    {
-        boost::system::error_code error;
-        boost::shared_ptr<Session> session(new Session(m_service));
-        acceptor.async_accept(session->Socket(), yield[error]);
-        if (!error)
-        {
-            session->SetHttpCallback(m_httpCallback);
-            session->Go();
-        }
-    }
+    return SessionPtr(new HttpSession(m_service, m_httpCallback));
 }

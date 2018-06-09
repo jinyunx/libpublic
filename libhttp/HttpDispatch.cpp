@@ -8,14 +8,13 @@
 
 HttpDispatch::HttpDispatch(unsigned short port,
                            boost::asio::io_service &service)
-    : m_server(port, service)
+    : m_server(port, service, boost::bind(
+        &HttpDispatch::OnRequest, this,
+        _1, _2))
 { }
 
 void HttpDispatch::Go()
 {
-    m_server.SetHttpCallback(
-        boost::bind(&HttpDispatch::OnRequest, this,
-                    _1, _2));
     m_server.Go();
 }
 
