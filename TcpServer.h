@@ -66,7 +66,7 @@ protected:
                   boost::asio::yield_context yield)
     {
         boost::asio::deadline_timer timer(m_service);
-        StartTimer(timer,kTimeout);
+        StartTimer(timer, kTimeout);
 
         boost::system::error_code error;
         std::size_t size = m_socket.async_read_some(
