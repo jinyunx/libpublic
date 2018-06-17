@@ -10,13 +10,35 @@
 #include <boost/enable_shared_from_this.hpp>
 
 #include <iostream>
+#include <deque>
+
+namespace
+{
+    void PrintBuf(char *buf, size_t size)
+    {
+        for (size_t i = 0; i < size; ++i)
+        {
+            fprintf(stderr, "%x ", buf[i] & 0xff);
+            if ((i + 1) % 16 == 0)
+                fprintf(stderr, "\n");
+        }
+        fprintf(stderr, "\n");
+    }
+}
+
+typedef std::string Buffer;
+typedef boost::shared_ptr<Buffer> BufferPtr;
+typedef std::deque<BufferPtr> DequeBuffer;
 
 class Session : public boost::enable_shared_from_this<Session>,
                 private boost::noncopyable
 {
 public:
     explicit Session(boost::asio::io_service &service)
-        : m_service(service),
+        : m_writeTimeout(kTimeout),
+          m_readTimeout(kTimeout),
+          m_writing(false),
+          m_service(service),
           m_socket(m_service)
     { }
 
@@ -43,6 +65,16 @@ public:
                                    shared_from_this(), _1));
     }
 
+    void SetWriteTimeout(unsigned int t)
+    {
+        m_writeTimeout = t;
+    }
+
+    void SetReadTimeout(unsigned int t)
+    {
+        m_readTimeout = t;
+    }
+
 protected:
     virtual bool OnData(const char *buffer, std::size_t bufferLength) = 0;
     virtual void OnClose() = 0;
@@ -54,10 +86,16 @@ protected:
         {
             std::size_t bufferLength = kBufferSize;
             if (!ReadData(buffer, &bufferLength, yield))
+            {
+                std::cerr << "read data error" << std::endl;
                 break;
+            }
 
             if (!OnData(buffer, bufferLength))
+            {
+                std::cerr << "data process error" << std::endl;
                 break;
+            }
         }
         Shutdown();
     }
@@ -66,7 +104,7 @@ protected:
                   boost::asio::yield_context yield)
     {
         boost::asio::deadline_timer timer(m_service);
-        StartTimer(timer, kTimeout);
+        StartTimer(timer, m_readTimeout);
 
         boost::system::error_code error;
         std::size_t size = m_socket.async_read_some(
@@ -81,24 +119,40 @@ protected:
 
     void WriteResponse(const char *buffer, std::size_t len)
     {
-        boost::asio::spawn(
-            m_service, boost::bind(&Session::WriteData, shared_from_this(),
-                                   buffer, len, _1));
+        BufferPtr data(new Buffer(buffer, len));
+        WriteResponse(data);
     }
 
-    bool WriteData(const char *buffer, std::size_t len,
-                   boost::asio::yield_context yield)
+    void WriteResponse(const BufferPtr &data)
     {
-        boost::asio::deadline_timer timer(m_service);
-        StartTimer(timer, kTimeout);
+        m_writeBuffer.push_back(data);
+        if (!m_writing)
+        {
+            m_writing = true;
+            boost::asio::spawn(
+                m_service, boost::bind(&Session::WriteData, shared_from_this(),
+                                       _1));
+        }
+    }
 
-        std::string tmpBuf(buffer, len);
+    bool WriteData(boost::asio::yield_context yield)
+    {
         boost::system::error_code error;
-        boost::asio::async_write(
-            m_socket, boost::asio::buffer(tmpBuf.data(), tmpBuf.size()), yield[error]);
+        while (!error && !m_writeBuffer.empty())
+        {
+            boost::asio::deadline_timer timer(m_service);
+            StartTimer(timer, m_writeTimeout);
 
-        CancelTimer(timer);
+            BufferPtr buffer = m_writeBuffer.front();
+            m_writeBuffer.pop_front();
 
+            boost::asio::async_write(
+                m_socket, boost::asio::buffer(buffer->data(), buffer->size()), yield[error]);
+
+            CancelTimer(timer);
+        }
+
+        m_writing = false;
         return !error;
     }
 
@@ -114,6 +168,9 @@ protected:
 
     void StartTimer(boost::asio::deadline_timer &timer, int timeToTimeout)
     {
+        if (!timeToTimeout)
+            return;
+
         boost::system::error_code ignoreError;
         timer.expires_from_now(
             boost::posix_time::seconds(timeToTimeout), ignoreError);
@@ -151,6 +208,12 @@ protected:
 
     const static int kBufferSize = 128;
     const static int kTimeout = 10;
+
+    unsigned int m_writeTimeout;
+    unsigned int m_readTimeout;
+
+    bool m_writing;
+    DequeBuffer m_writeBuffer;
 
     boost::asio::io_service &m_service;
     boost::asio::ip::tcp::socket m_socket;
